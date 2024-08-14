@@ -1,0 +1,171 @@
+{{template "base" .}}
+
+{{define "title"}}Пост #{{.Post.ID}}{{end}}
+
+{{define "body"}}
+{{$td := .}}
+{{with .Post}}
+<div class="post">
+    <div class="metadata">
+        <strong>{{.Title}}</strong>
+        <span>{{.ID}}</span>
+        <p>Author: {{.Username}}</p>
+        <p>Categories: {{range $td.PCRelations}}[{{.}}] {{end}}</p>
+    </div>
+    <pre><code>{{.Content}}</code></pre>
+    <div class="metadata">
+        <div class="reaction-container">
+            {{if $td.AuthenticatedUser}}
+            <a class="reaction like" href="#" onclick="handleReactionClick(event, '{{.ID}}', '{{$td.AuthenticatedUser.ID}}', 'like', 'post')">
+                <img id="like-icon-{{.ID}}" class="like-icon" src="/static/img/like-svgrepo-com(1).svg" data-src-active="/static/img/icons8-facebook-like-48.png" alt="Like">
+                <span id="like-count-{{.ID}}">{{.Likes}}</span>
+            </a>
+            {{else}}
+            <img id="like-icon-{{.ID}}" class="like-icon" src="/static/img/like-svgrepo-com(1).svg" alt="Like">
+            <span id="like-count-{{.ID}}">{{.Likes}}</span>
+            {{end}}
+            {{if $td.AuthenticatedUser}}
+            <a class="reaction dislike" href="#" onclick="handleReactionClick(event, '{{.ID}}', '{{$td.AuthenticatedUser.ID}}', 'dislike', 'post')">
+                <img id="dislike-icon-{{.ID}}" class="dislike-icon" src="/static/img/dislike-svgrepo-com.svg" data-src-active="/static/img/dislike.png" alt="Dislike">
+                <span id="dislike-count-{{.ID}}">{{.Dislikes}}</span>
+            </a>
+            {{else}}
+            <img id="dislike-icon-{{.ID}}" class="dislike-icon" src="/static/img/dislike-svgrepo-com.svg" alt="Dislike">
+            <span id="dislike-count-{{.ID}}">{{.Dislikes}}</span>
+            {{end}}
+        </div>
+    </div>
+</div>
+{{end}}
+
+{{if .AuthenticatedUser}}
+<div class="comment">
+    <form action="/post/create/comment/" method="post" class="form-comment">
+        <input type="hidden" name="post_id" value="{{.Post.ID}}">
+        <input type="hidden" name="user_id" value="{{.AuthenticatedUser.ID}}">
+
+        <div class="form-element-comment">
+            <textarea name="content" id="comment-text" cols="30" rows="10" class="textarea-comment"></textarea>
+            <button class="form-element-button-comments" type="submit">
+                <p class="">Отправить</p>
+            </button>
+        </div>
+    </form>
+</div>
+{{else}}
+<p class="comment-info">Please sign in or sign up if you want to leave comments and likes/dislikes!</p>
+{{end}}
+
+{{if .Comments}}
+{{range .Comments}}
+<div class="comment-posted">
+    <h3 class="comment-posted-username">Author: {{.Username}}</h3>
+    <p class="comment-posted-text">{{.Content}}</p>
+    <div class="comment-posted-metadata">
+        {{if $td.AuthenticatedUser}}
+        <a class="reaction like" href="#" onclick="handleReactionClick(event, '{{.ID}}', '{{$td.AuthenticatedUser.ID}}', 'like', 'comment')">
+            <img id="like-icon-{{.ID}}" class="like-icon" src="/static/img/like-svgrepo-com(1).svg" data-src-active="/static/img/icons8-facebook-like-48.png" alt="Like">
+            <span id="like-count-{{.ID}}">{{.Likes}}</span>
+        </a>
+        {{else}}
+        <img id="like-icon-{{.ID}}" class="like-icon" src="/static/img/like-svgrepo-com(1).svg" alt="Like">
+        <span id="like-count-{{.ID}}">{{.Likes}}</span>
+        {{end}}
+        {{if $td.AuthenticatedUser}}
+        <a class="reaction dislike" href="#" onclick="handleReactionClick(event, '{{.ID}}', '{{$td.AuthenticatedUser.ID}}', 'dislike', 'comment')">
+            <img id="dislike-icon-{{.ID}}" class="dislike-icon" src="/static/img/dislike-svgrepo-com.svg" data-src-active="/static/img/dislike.png" alt="Dislike">
+            <span id="dislike-count-{{.ID}}">{{.Dislikes}}</span>
+        </a>
+        {{else}}
+        <img id="dislike-icon-{{.ID}}" class="dislike-icon" src="/static/img/dislike-svgrepo-com.svg" alt="Dislike">
+        <span id="dislike-count-{{.ID}}">{{.Dislikes}}</span>
+        {{end}}
+        <br>
+        <time class="comment-posted-time">Создано: {{humanDate .Created}}</time>
+    </div>
+</div>
+{{end}}
+{{else}}
+<p>Пока нет никаких комментарий!</p>
+{{end}}
+
+<script>
+    function handleReaction(url, reactionType, id, user_id, likes, dislikes, type) {
+        const reactionData = {
+            url: url,
+            id: id,
+            reactionType: reactionType,
+            user_id: user_id,
+            likes: likes,
+            dislikes: dislikes,
+            type: type
+        };
+
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(reactionData),
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.likes !== undefined && data.dislikes !== undefined) {
+                document.getElementById('like-count-'+ id).textContent = data.likes;
+                document.getElementById('dislike-count-' + id).textContent = data.dislikes;
+            } else {
+                console.error('Invalid response data:', data);
+            }
+        })
+        .catch(error => {
+            console.error('Error submitting reaction:', error);
+        });
+    }
+
+    function handleReactionClick(event, id, userId, reactionType, type) {
+        event.preventDefault();
+        
+        const likeIcon = document.getElementById(`like-icon-${id}`);
+        const dislikeIcon = document.getElementById(`dislike-icon-${id}`);
+        const likeCountElement = document.getElementById(`like-count-${id}`);
+        const dislikeCountElement = document.getElementById(`dislike-count-${id}`);
+
+        if (reactionType === 'like') {
+            if (likeIcon.src.includes(likeIcon.dataset.srcActive)) {
+                likeIcon.src = '/static/img/like-svgrepo-com(1).svg'; 
+                likeCountElement.textContent = parseInt(likeCountElement.textContent) ; 
+            } else {
+                likeIcon.src = likeIcon.dataset.srcActive; 
+                likeCountElement.textContent = parseInt(likeCountElement.textContent); 
+
+                if (dislikeIcon.src.includes(dislikeIcon.dataset.srcActive)) {
+                    dislikeIcon.src = '/static/img/dislike-svgrepo-com.svg'; 
+                    dislikeCountElement.textContent = parseInt(dislikeCountElement.textContent) ; 
+                }
+            }
+        } else if (reactionType === 'dislike') {
+            if (dislikeIcon.src.includes(dislikeIcon.dataset.srcActive)) {
+                dislikeIcon.src = '/static/img/dislike-svgrepo-com.svg'; 
+                dislikeCountElement.textContent = parseInt(dislikeCountElement.textContent) ; 
+            } else {
+                dislikeIcon.src = dislikeIcon.dataset.srcActive; 
+                dislikeCountElement.textContent = parseInt(dislikeCountElement.textContent) ; 
+
+                if (likeIcon.src.includes(likeIcon.dataset.srcActive)) {
+                    likeIcon.src = '/static/img/like-svgrepo-com(1).svg'; 
+                    likeCountElement.textContent = parseInt(likeCountElement.textContent) ; 
+                }
+            }
+        }
+
+        
+        handleReaction(`/${reactionType}/${id}`, reactionType, id, userId, likeCountElement.textContent, dislikeCountElement.textContent, type);
+    }
+</script>
+
+{{end}}
